@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+    }
+
+    body {
+        overflow: hidden;
+        position: relative;
+    }
+
+    .btnContainer {
+        width: 100%;
+        height: 50px;
+        display: flex;
+        justify-content: flex-start;
+        align-content: center;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 100;
+    }
+
+    .btn {
+        padding: 0 15px;
+        height: 40px;
+        color: #FAF7F2;
+        background: #161C2E;
+        line-height: 40px;
+        text-align: center;
+        border-radius: 4px;
+        margin-left: 30px;
+        font-size: 14px;
+        cursor: pointer;
+    }
+</style>
+<body>
+<div class="btnContainer">
+    <div class="btn">切换控制方式1</div>
+    <div class="btn">切换控制方式2</div>
+</div>
+</body>
+<script src="vender/three.js"></script>
+<script src="vender/MTLLoader.js"></script>
+<script src="vender/OBJLoader.js"></script>
+<script src="vender/OrbitControls.js"></script>
+<script src="vender/threex.keyboardstate.js"></script>
+
+<script>
+    var container, stats;
+
+    var camera, scene, renderer;
+
+    var mouseX = 0, mouseY = 0;
+
+    var windowHalfX = window.innerWidth / 2;
+    var windowHalfY = window.innerHeight / 2;
+    var clock = new THREE.Clock();
+    var orbitControls;
+
+    var raycaster = new THREE.Raycaster();
+    //    var sceneRaycaster = new THREE.Raycaster();
+    var mouse = new THREE.Vector2();
+
+    var loadObject;//存储加载的obj
+    var carObject; // 存储汽车obj
+    var ceilArr = [];//存储房顶
+    var fontWallArr = [];//正门所在的墙
+    var planeArr = [];//平台
+    //    keyboard controller
+    var updateFcts = [];//键盘数组
+    var lastTimeMsec = null;
+    var angle = 0;
+
+    var table;//存储桌子
+
+    var vector = new THREE.Vector3();
+    var flag = 1;
+
+    var objMesh = {};
+    init();
+    animate();
+
+
+    var doorArr = {
+        upNow: [],
+        downNow: [],
+        all: [],
+    }
+
+
+    function init() {
+
+        container = document.createElement('div');
+        document.body.appendChild(container);
+
+        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 80000);
+        camera.position.x = 4000;
+        camera.position.y = 4000;
+        camera.position.z = 5000;
+
+        // scene
+
+        scene = new THREE.Scene();
+
+        var ambient = new THREE.AmbientLight('#fff');
+        ambient.position.set(5000, 5000, 5000)
+        scene.add(ambient);
+
+        var directionalLight = new THREE.DirectionalLight('#fff');
+        directionalLight.position.set(5000, 5000, 5000).normalize();
+//        scene.add( directionalLight );
+
+        //建立房顶标注
+        var ceilLabelGeometry = new THREE.SphereGeometry(100, 40, 40);
+        var ceilLabelMaterial = new THREE.MeshBasicMaterial({color: '#ED2E00', wireframe: false})
+        var ceilLabel = new THREE.Mesh(ceilLabelGeometry, ceilLabelMaterial)
+        ceilLabel.name = 'ceilLabel';
+        ceilLabel.position.set(500, 1400, -1400)
+        scene.add(ceilLabel)
+        // model
+
+        var onProgress = function (xhr) {
+            if (xhr.lengthComputable) {
+                var percentComplete = xhr.loaded / xhr.total * 100;
+                console.log(Math.round(percentComplete, 2) + '% downloaded');
+            }
+        };
+
+        var onError = function (xhr) {
+        };
+
+        orbitControls = new THREE.OrbitControls(camera);
+        orbitControls.autoRotate = false;
+        orbitControls.userPan = true
+        orbitControls.userPanSpeed = 20;
+        orbitControls.maxPolarAngle = Math.PI / 2
+        orbitControls.maxDistance = 20000
+        console.log(orbitControls)
+
+
+        var mtlLoader = new THREE.MTLLoader();
+//加载房子
+        mtlLoader.setPath('vender/model/');
+        mtlLoader.load('model.mtl', function (materials) {
+            materials.preload();
+
+            var objLoader = new THREE.OBJLoader();
+            objLoader.setMaterials(materials);
+            objLoader.setPath('vender/model/');
+            objLoader.load('model.obj', function (object) {
+
+                object.position.set(0, 1100, 0);
+                object['matrixWorldNeedsUpdate'] = true;
+                object.name = 'model';
+                object.children.forEach((v, i) => {
+                    v['matrixWorldNeedsUpdate'] = true;
+                    v.updateMatrixWorld();
+                    if (v.name == 'Box019' || v.name == 'Box022' || v.name == 'Plane001' || v.name == 'Plane002') {
+                        //屋顶
+                        ceilArr.push(v)
+                    } else if (v.name == 'Box005') {
+                        //前门墙
+                        fontWallArr.push(v)
+                    } else if (v.name == 'Box023') {
+                        //平台
+                        planeArr.push(v);
+                    } else if (v.name == 'Line1854') {
+                        console.log(v)
+                    } else if (v.name == 'Box566') {
+                        //左一门
+                        var obj = {
+                            id: v.name,
+                            value: v,
+                            upflag: true,
+                            downflag: false,
+                        }
+                        doorArr.all.push(obj);
+                    } else if (v.name == 'Box565') {
+                        //左二门
+                        var obj = {
+                            id: v.name,
+                            value: v,
+                            upflag: true,
+                            downflag: false,
+                        }
+                        doorArr.all.push(obj);
+                    } else if (v.name == 'Box564') {
+                        //左三门
+                        var obj = {
+                            id: v.name,
+                            value: v,
+                            upflag: true,
+                            downflag: false,
+                        }
+                        doorArr.all.push(obj);
+                    } else if (v.name == 'Box567') {
+                        //左四门
+                        var obj = {
+                            id: v.name,
+                            value: v,
+                            upflag: true,
+                            downflag: false,
+                        }
+                        doorArr.all.push(obj);
+                    } else if (v.name == 'Box568') {
+                        //左五门
+                        var obj = {
+                            id: v.name,
+                            value: v,
+                            upflag: true,
+                            downflag: false,
+                        }
+                        doorArr.all.push(obj);
+                    } else if (v.name == 'Box569') {
+                        //左六门
+                        var obj = {
+                            id: v.name,
+                            value: v,
+                            upflag: true,
+                            downflag: false,
+                        }
+                        doorArr.all.push(obj);
+                    }
+                })
+                loadObject = object;
+                scene.add(object);
+            }, onProgress, onError);
+
+        });
+//        加载桌子
+        mtlLoader.load('table.mtl', function (materials) {
+            materials.preload();
+            var objLoader = new THREE.OBJLoader();
+            objLoader.setMaterials(materials);
+            objLoader.setPath('vender/model/');
+            objLoader.load('table.obj', function (object) {
+                object.position.set(200, 0, 200);
+                object.name = 'table';
+                object.scale.x = 5;
+                object.scale.y = 5;
+                object.scale.z = 5;
+
+                object.children.forEach((v, i) => {
+                    v.name = 'tabelMesh'
+                })
+                table = object;
+                scene.add(object);
+
+            }, onProgress, onError);
+
+        });
+//加载车
+//        mtlLoader.load( 'lanbo.mtl', function( materials ) {
+//            materials.preload();
+//
+//            var objLoader = new THREE.OBJLoader();
+//            objLoader.setMaterials( materials );
+//            objLoader.setPath( 'vender/model/' );
+//            objLoader.load( 'lanbo.obj', function ( object ) {
+//                object.position.set(464.458251953125,1100,-6816.06640625);
+//                object['matrixWorldNeedsUpdate'] = true;
+//                object.name = 'car';
+//                carObject = object
+//                scene.add( object );
+//
+//                updateFcts.push(function(delta, now){
+//                    if(keyboard.pressed("left")) {
+//                        carObject.rotation.y += 1/36;
+//                        angle += 1/36;
+//                    }
+//                    if(keyboard.pressed("right")) {
+//                        carObject.rotation.y -= 1/36;
+//                        angle -= 1/36;
+//                    }
+//                    if(keyboard.pressed("up")) {
+//                        carObject.position.z += Math.cos(angle)*15;
+//                        carObject.position.x += Math.sin(angle)*15;
+//                    }
+//                    if(keyboard.pressed("down")) {
+//                        carObject.position.z -= Math.cos(angle)*15;
+//                        carObject.position.x -= Math.sin(angle)*15;
+//
+//                    }
+//                })
+//            }, onProgress, onError );
+//
+//        });
+
+        renderer = new THREE.WebGLRenderer();
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        container.appendChild(renderer.domElement);
+        //
+
+        //       设置键盘事件
+        var keyboard = new THREEx.KeyboardState(renderer.domElement);
+        renderer.domElement.setAttribute("tabIndex", "0");
+        renderer.domElement.focus();
+
+        updateFcts.push(function () {
+            renderer.render(scene, camera);
+        })
+        window.addEventListener('resize', onWindowResize, false);
+
+        window.addEventListener('click', onWindowClick, false)
+    }
+
+    function onWindowResize() {
+
+        windowHalfX = window.innerWidth / 2;
+        windowHalfY = window.innerHeight / 2;
+
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+
+    }
+
+    function onWindowClick(e) {
+        e.preventDefault();
+        mouse.x = ( e.clientX / window.innerWidth ) * 2 - 1;
+        mouse.y = -( e.clientY / window.innerHeight ) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        var houseIntersects = raycaster.intersectObjects(loadObject.children);
+        var sceneIntersects = raycaster.intersectObjects(scene.children, true)
+        for (var i = 0; i < houseIntersects.length; i++) {
+//            门1
+            if (houseIntersects[i].object.name == 'Box566') {
+                setDoorAnimate(houseIntersects[i].object.name);
+                break;
+            }
+//            门2
+            if (houseIntersects[i].object.name == 'Box565') {
+                setDoorAnimate(houseIntersects[i].object.name);
+                break;
+            }
+//            门3
+            if (houseIntersects[i].object.name == 'Box564') {
+                setDoorAnimate(houseIntersects[i].object.name);
+                break;
+            }
+//          门4
+            if (houseIntersects[i].object.name == 'Box567') {
+                setDoorAnimate(houseIntersects[i].object.name);
+                break;
+            }
+//            门5
+            if (houseIntersects[i].object.name == 'Box568') {
+                setDoorAnimate(houseIntersects[i].object.name);
+                break;
+            }
+//            门6
+            if (houseIntersects[i].object.name == 'Box569') {
+                setDoorAnimate(houseIntersects[i].object.name);
+                break;
+            }
+        }
+        for (var i = 0; i < sceneIntersects.length; i++) {
+//            桌子
+//            发现桌子并在桌子上放置一个方块
+            if (sceneIntersects[i].object.name == 'tabelMesh') {
+                var tableCubeFlag = 1;
+                var clickObj = sceneIntersects[i].object
+                for (var i = 0; i < clickObj.parent.children.length; i++) {
+                    if (clickObj.parent.children[i].name == 'tableCube') {
+                        tableCubeFlag = 0;
+                        break;
+                    }
+                }
+                if (tableCubeFlag) {
+                    var cubeGeometry = new THREE.CubeGeometry(20, 20, 20, 20);
+                    var cubeMaterial = new THREE.MeshLambertMaterial({color: '#2BB3C0'})
+                    var cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+                    cube.position.set(0, 60, 0);
+                    cube.name = 'tableCube'
+                    clickObj.parent.add(cube);
+                    break;
+                } else {
+                    break;
+                }
+            }
+        }
+        ;
+//        console.log(sceneIntersects)
+//        console.log(scene)
+    }
+
+    function setDoorAnimate(id) {
+        doorArr.all.forEach((v, i) => {
+            if (v.id === id) {
+                if (v.value.position.y <= 0 && v.upflag) {
+                    v.upflag = false;
+                    doorArr.upNow.push(v);
+                } else if (v.value.position.y >= 300 && v.downflag) {
+                    v.downflag = false;
+                    doorArr.downNow.push(v);
+                }
+            }
+        })
+    }
+
+    function checkDoorAnimeate() {
+        if (doorArr) {
+            if (doorArr.upNow.length) {
+                doorArr.upNow.forEach((v, i) => {
+                    if (v.value.position.y < 300) {
+                        v.value.position.y += 10;
+                    } else {
+                        doorArr.upNow.splice(i, 1)
+                        v.upflag = false;
+                        v.downflag = true;
+                    }
+                })
+            }
+
+            if (doorArr.downNow.length) {
+                doorArr.downNow.forEach((v, i) => {
+                    if (v.value.position.y > 0) {
+                        v.value.position.y -= 10;
+                    } else {
+                        doorArr.downNow.splice(i, 1)
+                        v.downflag = false;
+                        v.upflag = true;
+                    }
+                })
+            }
+        }
+    }
+
+
+    function animate() {
+
+        requestAnimationFrame(animate);
+        render();
+        checkDoorAnimeate();
+
+    }
+
+    function render(nowMsec) {
+
+//        camera.lookAt( scene.position );
+
+
+//        var delta = clock.getDelta();
+        orbitControls.update();
+        renderer.render(scene, camera);
+
+        // update the picking ray with the camera and mouse position
+        raycaster.setFromCamera(mouse, camera);
+
+        if (planeArr.length && flag) {
+            flag = 0;
+            var center = planeArr[0].geometry.boundingSphere.center
+            var SphereGeometry = new THREE.SphereGeometry(100, 40, 40);
+            var SphereMaterial = new THREE.MeshBasicMaterial({color: '#ED2E00', wireframe: false})
+            var Sphere = new THREE.Mesh(SphereGeometry, SphereMaterial);
+            var blueSphere = Sphere.clone();
+            blueSphere.name = 'blueSphere';
+            blueSphere.position.set(0, 0, 0)
+            scene.add(blueSphere)
+            Sphere.name = 'Sphere';
+            Sphere.position.set(center.x, center.y, center.z)
+            scene.add(Sphere)
+        }
+
+//        ketboard controller
+        lastTimeMsec = lastTimeMsec || nowMsec - 1000 / 60
+        var deltaMsec = Math.min(200, nowMsec - lastTimeMsec)
+        lastTimeMsec = nowMsec
+        // call each update function
+        updateFcts.forEach(function (updateFn) {
+            updateFn(deltaMsec / 1000, nowMsec / 1000)
+        })
+    }
+
+
+</script>
+</html>
