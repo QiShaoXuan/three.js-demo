@@ -142,8 +142,6 @@
         orbitControls.userPanSpeed = 20;
         orbitControls.maxPolarAngle = Math.PI / 2
         orbitControls.maxDistance = 20000
-        console.log(orbitControls)
-
 
         var mtlLoader = new THREE.MTLLoader();
 //加载房子
@@ -172,7 +170,7 @@
                         //平台
                         planeArr.push(v);
                     } else if (v.name == 'Line1854') {
-                        console.log(v)
+//                        坡道
                     } else if (v.name == 'Box566') {
                         //左一门
                         var obj = {
@@ -387,10 +385,7 @@
                     break;
                 }
             }
-        }
-        ;
-//        console.log(sceneIntersects)
-//        console.log(scene)
+        };
     }
 
     function setDoorAnimate(id) {
