@@ -39,18 +39,25 @@
         font-size: 14px;
         cursor: pointer;
     }
+    #choosenBtn{
+        background:#286090 ;
+    }
 </style>
 <body>
 <div class="btnContainer">
-    <div class="btn">切换控制方式1</div>
-    <div class="btn">切换控制方式2</div>
+    <div class="btn" id="choosenBtn">第三人称视角</div>
+    <div class="btn">第一人称视角</div>
+    <div class="btn">飞行模式</div>
+    <div class="btn">加载汽车</div>
 </div>
 </body>
 <script src="vender/three.js"></script>
 <script src="vender/MTLLoader.js"></script>
 <script src="vender/OBJLoader.js"></script>
 <script src="vender/OrbitControls.js"></script>
+<script src="vender/FlyControls.js"></script>
 <script src="vender/threex.keyboardstate.js"></script>
+<script src="vender/FirstPersonControls.js"></script>
 
 <script>
     var container, stats;
@@ -62,7 +69,7 @@
     var windowHalfX = window.innerWidth / 2;
     var windowHalfY = window.innerHeight / 2;
     var clock = new THREE.Clock();
-    var orbitControls;
+    var controls;
 
     var raycaster = new THREE.Raycaster();
     //    var sceneRaycaster = new THREE.Raycaster();
@@ -79,11 +86,110 @@
     var angle = 0;
 
     var table;//存储桌子
-
+    var clock = new THREE.Clock();
     var vector = new THREE.Vector3();
     var flag = 1;
+    var witchControl = 0;
+    var originControl = 0;
 
     var objMesh = {};
+
+    var btn = document.querySelectorAll('.btn');
+    for(var i=0;i<btn.length;i++){
+        btn[i].index = i;
+        btn[i].addEventListener('click',function(){
+            btn.forEach((v,index) => {
+                v.setAttribute('id','')
+            });
+            this.setAttribute('id','choosenBtn');
+            witchControl = this.index;
+            if(witchControl != originControl){
+                switch (witchControl){
+                    case 0 :
+                        controls = new THREE.OrbitControls(camera);
+                        controls.autoRotate = false;
+                        controls.userPan = false;
+                        controls.userPanSpeed = 0;
+                        controls.maxPolarAngle = Math.PI / 2
+                        controls.maxDistance = 20000;
+                        originControl = witchControl;
+                        console.log(controls)
+                        break;
+                    case 1 :
+                        controls = new THREE.FirstPersonControls( camera );
+                        controls.lookSpeed = 0.05;
+                        controls.movementSpeed = 1000;
+                        controls.noFly = false;
+                        controls.lookVertical = true;
+                        controls.constrainVertical = true;
+                        controls.verticalMin = 1.5;
+                        controls.verticalMax = 2.0;
+                        controls.lon = 250;
+                        controls.lat = 30;
+                        originControl = witchControl;
+
+                        break;
+                    case 2 :
+                        controls = new THREE.FlyControls( camera );
+                        controls.movementSpeed = 1000;
+                        controls.domElement = container;
+                        controls.rollSpeed = Math.PI / 12;
+                        controls.autoForward = false;
+                        controls.dragToLook = false;
+                        originControl = witchControl;
+                        break;
+                    case 3 :
+                        controls = null;
+                        //加载车
+                        //       设置键盘事件
+                        var keyboard = new THREEx.KeyboardState(renderer.domElement);
+                        renderer.domElement.setAttribute("tabIndex", "0");
+                        renderer.domElement.focus();
+                        var mtlLoader = new THREE.MTLLoader();
+                        mtlLoader.setPath('vender/model/');
+                        mtlLoader.load( 'lanbo.mtl', function( materials ) {
+                            materials.preload();
+                            var objLoader = new THREE.OBJLoader();
+                            objLoader.setMaterials( materials );
+                            objLoader.setPath( 'vender/model/' );
+                            objLoader.load( 'lanbo.obj', function ( object ) {
+                                object.position.set(464.458251953125,0,-6816.06640625);
+                                object['matrixWorldNeedsUpdate'] = true;
+                                object.name = 'car';
+                                carObject = object
+                                scene.add( object );
+
+                                updateFcts.push(function(delta, now){
+                                    if(keyboard.pressed("left")) {
+                                        carObject.rotation.y += 1/36;
+                                        angle += 1/36;
+                                    }
+                                    if(keyboard.pressed("right")) {
+                                        carObject.rotation.y -= 1/36;
+                                        angle -= 1/36;
+                                    }
+                                    if(keyboard.pressed("up")) {
+                                        carObject.position.z += Math.cos(angle)*15;
+                                        carObject.position.x += Math.sin(angle)*15;
+                                    }
+                                    if(keyboard.pressed("down")) {
+                                        carObject.position.z -= Math.cos(angle)*15;
+                                        carObject.position.x -= Math.sin(angle)*15;
+
+                                    }
+                                })
+                            }, function(xhr){
+                                if (xhr.lengthComputable) {
+                                    var percentComplete = xhr.loaded / xhr.total * 100;
+                                    console.log(Math.round(percentComplete, 2) + '% downloaded');
+                                }
+                            }, function(){alert('fail load')} );
+                            originControl = witchControl;
+                        });
+                }
+            }
+        })
+    }
     init();
     animate();
 
@@ -136,12 +242,13 @@
         var onError = function (xhr) {
         };
 
-        orbitControls = new THREE.OrbitControls(camera);
-        orbitControls.autoRotate = false;
-        orbitControls.userPan = true
-        orbitControls.userPanSpeed = 20;
-        orbitControls.maxPolarAngle = Math.PI / 2
-        orbitControls.maxDistance = 20000
+        controls = new THREE.OrbitControls(camera);
+        controls.autoRotate = false;
+        controls.userPan = false;
+        controls.userPanSpeed = 0;
+        controls.maxPolarAngle = Math.PI / 2
+        controls.maxDistance = 20000;
+
 
         var mtlLoader = new THREE.MTLLoader();
 //加载房子
@@ -254,53 +361,12 @@
             }, onProgress, onError);
 
         });
-//加载车
-//        mtlLoader.load( 'lanbo.mtl', function( materials ) {
-//            materials.preload();
-//
-//            var objLoader = new THREE.OBJLoader();
-//            objLoader.setMaterials( materials );
-//            objLoader.setPath( 'vender/model/' );
-//            objLoader.load( 'lanbo.obj', function ( object ) {
-//                object.position.set(464.458251953125,1100,-6816.06640625);
-//                object['matrixWorldNeedsUpdate'] = true;
-//                object.name = 'car';
-//                carObject = object
-//                scene.add( object );
-//
-//                updateFcts.push(function(delta, now){
-//                    if(keyboard.pressed("left")) {
-//                        carObject.rotation.y += 1/36;
-//                        angle += 1/36;
-//                    }
-//                    if(keyboard.pressed("right")) {
-//                        carObject.rotation.y -= 1/36;
-//                        angle -= 1/36;
-//                    }
-//                    if(keyboard.pressed("up")) {
-//                        carObject.position.z += Math.cos(angle)*15;
-//                        carObject.position.x += Math.sin(angle)*15;
-//                    }
-//                    if(keyboard.pressed("down")) {
-//                        carObject.position.z -= Math.cos(angle)*15;
-//                        carObject.position.x -= Math.sin(angle)*15;
-//
-//                    }
-//                })
-//            }, onProgress, onError );
-//
-//        });
+
 
         renderer = new THREE.WebGLRenderer();
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight);
         container.appendChild(renderer.domElement);
-        //
-
-        //       设置键盘事件
-        var keyboard = new THREEx.KeyboardState(renderer.domElement);
-        renderer.domElement.setAttribute("tabIndex", "0");
-        renderer.domElement.focus();
 
         updateFcts.push(function () {
             renderer.render(scene, camera);
@@ -319,6 +385,8 @@
         camera.updateProjectionMatrix();
 
         renderer.setSize(window.innerWidth, window.innerHeight);
+
+        controls.handleResize();
 
     }
 
@@ -445,7 +513,17 @@
 
 
 //        var delta = clock.getDelta();
-        orbitControls.update();
+
+//       orbitControls needs
+//        orbitControls.update();
+//        flyControls needs
+
+        if(controls){
+            var delta = clock.getDelta();
+            controls.update( delta );
+        }
+
+
         renderer.render(scene, camera);
 
         // update the picking ray with the camera and mouse position
