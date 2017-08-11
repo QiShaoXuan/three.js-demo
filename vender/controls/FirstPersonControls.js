@@ -142,16 +142,16 @@ THREE.FirstPersonControls = function ( object, domElement ) {
 
 		switch ( event.keyCode ) {
 
-			case 38: /*up*/
+			// case 38: /*up*/
 			case 87: /*W*/ this.moveForward = true; break;
 
-			case 37: /*left*/
+			// case 37: /*left*/
 			case 65: /*A*/ this.moveLeft = true; break;
 
-			case 40: /*down*/
+			// case 40: /*down*/
 			case 83: /*S*/ this.moveBackward = true; break;
 
-			case 39: /*right*/
+			// case 39: /*right*/
 			case 68: /*D*/ this.moveRight = true; break;
 
 			case 82: /*R*/ this.moveUp = true; break;
@@ -237,13 +237,12 @@ THREE.FirstPersonControls = function ( object, domElement ) {
 		this.theta = THREE.Math.degToRad( this.lon );
 
 		if ( this.constrainVertical ) {
-
 			this.phi = THREE.Math.mapLinear( this.phi, 0, Math.PI, this.verticalMin, this.verticalMax );
-
 		}
 
 		var targetPosition = this.target,
 			position = this.object.position;
+		// console.log(position)
 
 		targetPosition.x = position.x + 100 * Math.sin( this.phi ) * Math.cos( this.theta );
 		targetPosition.y = position.y + 100 * Math.cos( this.phi );
